@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<title>Runic DarkRP</title>
+<style>
+  /* ---------------------------------------------------------------
+     Runic DarkRP -- yukleme ekrani
+
+     GMod bu sayfayi sv_loadingurl ile acar ve baglanti suresince gosterir.
+     Sayfa GMod'un JS API'sini kullanir; asagidaki fonksiyonlari GMod
+     KENDISI cagirir, biz sadece tanimlariz:
+        GameDetails(sunucuAdi, sunucuURL, harita, maxOyuncu, steamid, gamemode)
+        SetFilesTotal(n)      -- indirilecek toplam dosya
+        SetFilesNeeded(n)     -- kalan dosya
+        DownloadingFile(ad)   -- su an inen dosya
+     --------------------------------------------------------------- */
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html, body {
+    height: 100%;
+    background: #05070a;
+    color: #d8dde6;
+    font-family: Georgia, "Times New Roman", serif;
+    overflow: hidden;
+  }
+
+  /* Arka plan gorseli. Ayni klasore background.jpg koyun.
+     Dosya yoksa altindaki koyu degrade gorunur, sayfa yine calisir. */
+  .bg {
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at 50% 35%, rgba(40,48,62,.55), transparent 60%),
+      linear-gradient(180deg, #05070a 0%, #0a0e14 45%, #05070a 100%);
+    background-size: cover;
+    background-position: center;
+  }
+  .bg.has-image { background-image: url("background.jpg"); }
+
+  /* Arka planda marka gorseli VAR: kendi basligimizi bir daha cizmeyelim,
+     iki kere "Runic DarkRP" yazmis oluruz. Gorsel yuklendiginde .brand
+     gizleniyor (bkz. sayfa sonundaki script). */
+  .brand.hidden { display: none; }
+
+  /* Ustune ince bir karartma: yazilar her zaman okunur kalsin.
+     Gorsel varken daha hafif, yoksa daha koyu. */
+  .veil {
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(ellipse at 50% 45%, rgba(0,0,0,.15), rgba(0,0,0,.72) 75%),
+      linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.55));
+  }
+  .veil.with-image {
+    background:
+      linear-gradient(180deg, rgba(0,0,0,.10) 0%, rgba(0,0,0,.05) 45%,
+                              rgba(0,0,0,.75) 78%, rgba(0,0,0,.92) 100%);
+  }
+
+  /* Gorsel varken bilgi ve ilerleme alt kisma toplaniyor -- ustteki
+     marka gorselini kapatmasinlar. */
+  .wrap.with-image { justify-content: flex-end; padding-bottom: 9vh; }
+
+  .wrap {
+    position: relative;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 4vh 4vw;
+  }
+
+  /* ---------------- Marka ---------------- */
+  .brand { text-align: center; margin-bottom: 6vh; }
+
+  .star {
+    font-size: 4.2vh;
+    line-height: 1;
+    color: #cdd4e0;
+    text-shadow: 0 0 18px rgba(180,200,235,.45);
+    margin-bottom: 1.4vh;
+  }
+
+  .title {
+    font-size: clamp(38px, 8.6vh, 104px);
+    letter-spacing: .02em;
+    background: linear-gradient(180deg, #ffffff 0%, #c9d2e0 38%, #7d8798 62%, #e8edf5 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    text-shadow: 0 6px 26px rgba(0,0,0,.85);
+  }
+
+  .subtitle {
+    font-size: clamp(18px, 3.4vh, 40px);
+    letter-spacing: .16em;
+    margin-top: .4vh;
+    background: linear-gradient(180deg, #eef2f8 0%, #9aa4b4 70%, #d6dce6 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+
+  .rule {
+    margin: 2.2vh auto 0;
+    width: min(420px, 46vw);
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(190,205,230,.55), transparent);
+    position: relative;
+  }
+  .rule::after {
+    content: "\2726";
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    color: #b8c3d6;
+    font-size: 1.5vh;
+    background: #05070a;
+    padding: 0 .8vh;
+  }
+
+  /* ---------------- Sunucu bilgisi ---------------- */
+  .info {
+    display: flex;
+    gap: clamp(18px, 3vw, 54px);
+    margin-bottom: 4vh;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .cell { text-align: center; min-width: 120px; }
+  .cell .k {
+    font-family: system-ui, sans-serif;
+    font-size: 1.35vh;
+    letter-spacing: .22em;
+    text-transform: uppercase;
+    color: #6f7a8c;
+  }
+  .cell .v {
+    font-size: 2.4vh;
+    margin-top: .5vh;
+    color: #dfe5ef;
+  }
+
+  /* ---------------- Ilerleme ---------------- */
+  .progress-wrap { width: min(760px, 78vw); }
+
+  .bar {
+    height: 6px;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.14);
+    overflow: hidden;
+  }
+  .fill {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, #7f8b9e, #e6ecf5, #7f8b9e);
+    transition: width .25s ease;
+  }
+
+  .status {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 1.2vh;
+    font-family: system-ui, sans-serif;
+    font-size: 1.5vh;
+    color: #8a94a6;
+  }
+  #file {
+    max-width: 70%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* ---------------- Ipucu ---------------- */
+  .tip {
+    position: fixed;
+    bottom: 3.4vh; left: 0; right: 0;
+    text-align: center;
+    font-family: system-ui, sans-serif;
+    font-size: 1.7vh;
+    color: #7e8899;
+    padding: 0 6vw;
+  }
+  .tip b { color: #c2cad8; font-weight: 600; }
+</style>
+</head>
+<body>
+  <div class="bg" id="bg"></div>
+  <div class="veil"></div>
+
+  <div class="wrap">
+    <div class="brand">
+      <div class="star">&#10037;</div>
+      <div class="title">Runic</div>
+      <div class="subtitle">DarkRP</div>
+      <div class="rule"></div>
+    </div>
+
+    <div class="info">
+      <div class="cell"><div class="k">Sunucu</div><div class="v" id="servername">&mdash;</div></div>
+      <div class="cell"><div class="k">Harita</div><div class="v" id="mapname">&mdash;</div></div>
+      <div class="cell"><div class="k">Mod</div><div class="v" id="gamemode">&mdash;</div></div>
+      <div class="cell"><div class="k">Kapasite</div><div class="v" id="maxplayers">&mdash;</div></div>
+    </div>
+
+    <div class="progress-wrap">
+      <div class="bar"><div class="fill" id="fill"></div></div>
+      <div class="status">
+        <div id="file">Sunucuya bağlanılıyor&hellip;</div>
+        <div id="pct">0%</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tip" id="tip"></div>
+
+<script>
+/* ---------------------------------------------------------------
+   Arka plan gorseli varsa kullan.
+   Dosya yoksa hata basmadan degradeyle devam ederiz -- yukleme
+   ekraninin bozuk gorunmesindense sade gorunmesi iyidir.
+   --------------------------------------------------------------- */
+(function () {
+  var probe = new Image();
+
+  probe.onload = function () {
+    document.getElementById("bg").classList.add("has-image");
+    document.querySelector(".veil").classList.add("with-image");
+    document.querySelector(".wrap").classList.add("with-image");
+
+    // Gorselin uzerinde zaten "Runic DarkRP" yaziyor; kendi basligimizi
+    // gizliyoruz ki ayni isim iki kere gorunmesin.
+    document.querySelector(".brand").classList.add("hidden");
+  };
+
+  // Yuklenmezse hicbir sey yapmiyoruz: sayfa degrade + kendi basligiyla
+  // calismaya devam eder, bozuk gorunmez.
+  probe.src = "background.jpg";
+})();
+
+/* ---------------------------------------------------------------
+   GMod tarafindan cagrilan fonksiyonlar
+   --------------------------------------------------------------- */
+var totalFiles = 0;
+
+function GameDetails(servername, serverurl, mapname, maxplayers, steamid, gamemode) {
+  setText("servername", servername);
+  setText("mapname", mapname);
+  setText("gamemode", gamemode);
+  setText("maxplayers", maxplayers);
+}
+
+function SetFilesTotal(total) {
+  totalFiles = total || 0;
+}
+
+function SetFilesNeeded(needed) {
+  if (!totalFiles) { setProgress(0); return; }
+  var done = totalFiles - (needed || 0);
+  setProgress(Math.max(0, Math.min(100, (done / totalFiles) * 100)));
+}
+
+function DownloadingFile(name) {
+  setText("file", "İndiriliyor: " + String(name).replace(/^.*[\\\/]/, ""));
+}
+
+/* Bazi GMod surumleri bunlari da cagiriyor; tanimli olmalari
+   konsolda "is not defined" hatasi cikmasini engelliyor. */
+function SetStatusChanged(status) { setText("file", status); }
+function DownloadingMap(name) { setText("file", "Harita indiriliyor: " + name); }
+
+/* ---------------------------------------------------------------
+   Yardimcilar
+   --------------------------------------------------------------- */
+function setText(id, v) {
+  var el = document.getElementById(id);
+  if (el && v !== undefined && v !== null && v !== "") el.textContent = v;
+}
+
+function setProgress(p) {
+  document.getElementById("fill").style.width = p + "%";
+  document.getElementById("pct").textContent = Math.round(p) + "%";
+}
+
+/* ---------------------------------------------------------------
+   Ipuclari -- oyuncuya sunucunun kendi mantigini anlatiyor.
+   Sunucumuz klasik DarkRP'den farkli calisiyor, en cok karistiran
+   seyleri buraya koyduk.
+   --------------------------------------------------------------- */
+var tips = [
+  "Meslekler <b>F4'ten değil</b>, şehirdeki iş noktalarından alınır. Haritada dolaşıp iş merkezini bul.",
+  "<b>F4 &rarr; Karakter</b> ekranından kıyafet, saç ve aksesuarlarını değiştirebilirsin.",
+  "Meslek değiştirdiğinde <b>ölmezsin</b> — olduğun yerde kalır, sadece kıyafetin ve eşyaların değişir.",
+  "Yasadışı işler ayrı noktalardan alınır. Polisin gözünden uzak yerlere bakmayı dene.",
+  "Aksesuarlarını taktıktan sonra <b>konumlarını da ayarlayabilirsin</b> — kutuya tekrar tıkla.",
+  "Kazanç maaştan değil <b>üretimden</b> gelir. Bir iş kur, üret, sat.",
+  "Sohbete <b>/kanunlar</b> yazarak şehrin kurallarını görebilirsin."
+];
+
+(function rotateTips() {
+  var el = document.getElementById("tip");
+  var i = Math.floor(Math.random() * tips.length);
+  el.innerHTML = tips[i];
+  setInterval(function () {
+    i = (i + 1) % tips.length;
+    el.style.opacity = 0;
+    setTimeout(function () { el.innerHTML = tips[i]; el.style.opacity = 1; }, 350);
+  }, 7000);
+  el.style.transition = "opacity .35s ease";
+})();
+</script>
+</body>
+</html>
