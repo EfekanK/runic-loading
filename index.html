@@ -29,7 +29,7 @@
   /* Arka plan gorseli. Ayni klasore background.jpg koyun.
      Dosya yoksa altindaki koyu degrade gorunur, sayfa yine calisir. */
   .bg {
-    position: fixed; inset: 0;
+    position: fixed; top: 0; right: 0; bottom: 0; left: 0;
     background:
       radial-gradient(ellipse at 50% 35%, rgba(40,48,62,.55), transparent 60%),
       linear-gradient(180deg, #05070a 0%, #0a0e14 45%, #05070a 100%);
@@ -46,7 +46,7 @@
   /* Ustune ince bir karartma: yazilar her zaman okunur kalsin.
      Gorsel varken daha hafif, yoksa daha koyu. */
   .veil {
-    position: fixed; inset: 0;
+    position: fixed; top: 0; right: 0; bottom: 0; left: 0;
     background:
       radial-gradient(ellipse at 50% 45%, rgba(0,0,0,.15), rgba(0,0,0,.72) 75%),
       linear-gradient(180deg, rgba(0,0,0,.35), rgba(0,0,0,.55));
@@ -232,6 +232,17 @@
     // Gorselin uzerinde zaten "Runic DarkRP" yaziyor; kendi basligimizi
     // gizliyoruz ki ayni isim iki kere gorunmesin.
     document.querySelector(".brand").classList.add("hidden");
+
+    // GUVENCE: gorseli GOVDEYE de yaziyoruz.
+    // Ilk denemede arka plan siyah kaldi. Sinif degisiklikleri (baslik
+    // gizlenmesi) calisiyordu, yani gorsel yuklenmisti ama .bg katmani
+    // gorunmuyordu -- muhtemelen konumlandirma yuzunden boyutu sifirdi.
+    // Govdeye yazmak o katmandan bagimsiz calisir.
+    var b = document.body.style;
+    b.backgroundImage = 'url("background.jpg")';
+    b.backgroundSize = "cover";
+    b.backgroundPosition = "center";
+    b.backgroundRepeat = "no-repeat";
   };
 
   // Yuklenmezse hicbir sey yapmiyoruz: sayfa degrade + kendi basligiyla
